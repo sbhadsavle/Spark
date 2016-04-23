@@ -1,0 +1,20 @@
+namenode:
+  name: hnamenode
+  public_dns: "a"
+  public_ip: "b"
+  private_dns_prefix: "c"
+  
+datanodes:
+  - name: hdatanode1
+    public_dns: "d"
+    public_ip: "e"
+    private_dns_prefix: "f"
+  - name: hdatanode2
+    public_dns: "g"
+    public_ip: "h"
+    private_dns_prefix: "i"
+  - name: hdatanode3
+    public_dns: "j"
+    public_ip: "k"
+    private_dns_prefix: "l"
+    
