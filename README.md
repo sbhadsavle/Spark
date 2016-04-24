@@ -19,7 +19,7 @@ There are four steps to get a project running:
 3. Setup Hadoop
 4. Run programs, analyze and record performance
 
-### 1. Create instances
+#### 1. Create instances
 
 Create 4 instances using Amazon AWS or Digital Ocean. Create an `addresses.yaml` 
 file with the relevant information using information from the AWS or Digital
@@ -50,7 +50,7 @@ Copy over the Hadoop setup scripts to the namenode and datanodes:
 $ hadoop/scp-setup-script.sh
 ```
 
-SSH into the namenode and datanodes:
+SSH into the namenode and datanodes in separate terminals:
 
 ```
 $ ssh hnamenode
