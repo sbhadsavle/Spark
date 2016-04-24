@@ -54,7 +54,7 @@ $ ./pwless-comm.sh
 Copy over the Hadoop setup scripts to the namenode and datanodes:
 
 ```
-$ hadoop/scp-setup-script.sh
+$ hadoop/scp-setup-scripts.sh
 ```
 
 SSH into the namenode and datanodes in separate terminals:
@@ -70,11 +70,13 @@ Run the setup scripts at the namenode and each of the datanodes:
 ```
 $ sudo ./setup.py namenode addresses.yaml
 $ source $HOME/.profile
+$ sudo chown -R ubuntu $HADOOP_HOME # TODO: fix in script
 ```
 
 ```
 $ sudo ./setup.py datanode addresses.yaml
 $ source $HOME/.profile
+$ sudo chown -R ubuntu $HADOOP_HOME
 ```
 
 #### 4. Running
@@ -92,7 +94,7 @@ $ $HADOOP_HOME/sbin/mr-jobhistory-daemon.sh start historyserver
 $ mkdir -p hadoop/demos
 $ cd hadoop/demos
 $ curl https://storage.googleapis.com/ee360p-files/hw4/TextAnalyzer.jar -o TextAnalyzer.jar
-$ curl https://console.cloud.google.com/m/cloudstorage/b/ee360p-files/o/pride-and-prejudice/input.tar.gz -o pp.tar.gz
+$ curl https://storage.googleapis.com/ee360p-files/pride-and-prejudice/input.tar.gz -o pp.tar.gz
 $ tar zxvf pp.tar.gz input/
 $ hdfs dfs -copyFromLocal input/ /input
 $ hadoop jar $HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.1.jar wordcount /input /output
