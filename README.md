@@ -12,26 +12,37 @@ scripts/  : general scripts applicable to both spark and hadoop, local scripts
 
 ## Hadoop
 
+There are four steps to get a project running:
+
+1. Create instances
+2. Setup SSH and communication
+3. Setup Hadoop
+4. Run programs, analyze and record performance
+
+### 1. Create instances
+
 Create 4 instances using Amazon AWS or Digital Ocean. Create an `addresses.yaml` 
-file with the relevant information (see examples for the structure) using
-information from the AWS or Digital Ocean websites. 
+file with the relevant information using information from the AWS or Digital
+Ocean websites. See `examples/addresses.yaml` for the structure of this file.
 
-#### SSH
 
-At a local machine, generate and save a ssh config to `~/.ssh/config` for ease of use: 
+#### 2. SSH
+
+At a local machine, generate and save an SSH config to `~/.ssh/config` for 
+ease of use: 
 
 ```
 $ scripts/sshconfig.py addresses.yaml ubuntu '~/.ssh/aws-hadoop.pem'
 ```
 
 To setup inter-node communication, copy over the local `~/.ssh/config` and
-key to the namenode and datanodes:
+`.pem` to the namenode and datanodes:
 
 ```
 $ scripts/scp-ssh-config.sh
 ```
 
-#### SETUP
+#### 3. Setup Hadoop
 
 Copy over the Hadoop setup scripts to the namenode and datanodes:
 
@@ -39,7 +50,7 @@ Copy over the Hadoop setup scripts to the namenode and datanodes:
 $ hadoop/scp-setup-script.sh
 ```
 
-ssh into the namenode and datanodes:
+SSH into the namenode and datanodes:
 
 ```
 $ ssh hnamenode
@@ -59,7 +70,7 @@ $ chmod +x setup.py
 $ sudo ./setup.py datanode addresses.yaml
 ```
 
-#### RUNNING
+#### 4. Running
 
 
 ## Spark
