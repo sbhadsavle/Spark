@@ -40,6 +40,13 @@ To setup inter-node communication, copy over the local `~/.ssh/config` and
 
 ```
 $ scripts/scp-ssh-config.sh
+$ scp scripts/pwless-comm.sh hnamenode:~/
+```
+
+SSH into the namenode and run:
+
+```
+$ ./pwless-comm.sh
 ```
 
 #### 3. Setup Hadoop
@@ -61,16 +68,36 @@ $ ssh hdatanode1
 Run the setup scripts at the namenode and each of the datanodes:
 
 ```
-$ chmod +x setup.py
 $ sudo ./setup.py namenode addresses.yaml
+$ source $HOME/.profile
 ```
 
 ```
-$ chmod +x setup.py
 $ sudo ./setup.py datanode addresses.yaml
+$ source $HOME/.profile
 ```
 
 #### 4. Running
 
+At the namenode:
+
+```
+$ hdfs namenode -format # should exit with status 0, otherwise recreate the hadoop_data dir and try again
+$ yes yes | $HADOOP_HOME/sbin/start-dfs.sh # play the yes game
+$ $HADOOP_HOME/sbin/start-yarn.sh
+$ $HADOOP_HOME/sbin/mr-jobhistory-daemon.sh start historyserver
+```
+
+```
+$ mkdir -p hadoop/demos
+$ cd hadoop/demos
+$ curl https://storage.googleapis.com/ee360p-files/hw4/TextAnalyzer.jar -o TextAnalyzer.jar
+$ curl https://console.cloud.google.com/m/cloudstorage/b/ee360p-files/o/pride-and-prejudice/input.tar.gz -o pp.tar.gz
+$ tar zxvf pp.tar.gz input/
+$ hdfs dfs -copyFromLocal input/ /input
+$ hadoop jar $HADOOP_HOME/share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.1.jar wordcount /input /output
+$ hdfs dfs -copyToLocal /output
+$ hdfs dfs -rm -r /output
+```
 
 ## Spark
