@@ -25,6 +25,8 @@ import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
 
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
@@ -133,6 +135,13 @@ public final class TextAnalyzer {
         for (Tuple2<String, ArrayList<Tuple2<String, Integer>>> outerTuple : output) {
             String contextWord = outerTuple._1();
             ArrayList<Tuple2<String, Integer>> pairs = outerTuple._2();
+            Collections.sort(pairs, new Comparator<Tuple2<String, Integer>>() {
+                @Override
+                public int compare(Tuple2<String, Integer> t1, Tuple2<String, Integer> t2) {
+                    return t1._1().compareTo(t2._1());
+                }
+            });
+
             System.out.println(contextWord);
 
             for (Tuple2<String, Integer> tup : pairs) {
