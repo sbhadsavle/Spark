@@ -36,108 +36,102 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 public final class TextAnalyzer {
-  public static void main(String[] args) throws Exception {
-    if (args.length < 1) {
-      System.err.println("Usage: TextAnalyzer <file>");
-      System.exit(1);
-    }
+    public static void main(String[] args) throws Exception {
+        if (args.length < 1) {
+            System.err.println("Usage: TextAnalyzer <file>");
+            System.exit(1);
+        }
 
-    SparkConf sparkConf = new SparkConf().setAppName("TextAnalyzer").setJars(new String[]{"/root/TextAnalyzer.jar"});
-    sparkConf.setMaster("spark://ec2-54-86-243-145.compute-1.amazonaws.com:7077");
-    JavaSparkContext ctx = new JavaSparkContext(sparkConf);
-    JavaRDD<String> lines = ctx.textFile(args[0], 1);
+        SparkConf sparkConf = new SparkConf().setAppName("TextAnalyzer").setJars(new String[] {"/root/TextAnalyzer.jar"});
+        sparkConf.setMaster("spark://ec2-54-86-243-145.compute-1.amazonaws.com:7077");
+        JavaSparkContext ctx = new JavaSparkContext(sparkConf);
+        JavaRDD<String> lines = ctx.textFile(args[0], 1);
 
-    JavaPairRDD<String, Tuple2<String, Integer>> aggregated = lines.mapToPair(new PairFunction<String, String, Tuple2<String, Integer>>() {
-      @Override
-      public Tuple2<String, Tuple2<String, Integer>> call(String s) {
-        String line = s.toLowerCase().replaceAll("\\W", " ").replaceAll("_", " ");
-        String[] tokens = line.split("\\s+");
-        Set<String> seen = new HashSet<String>();
+        JavaRDD<Tuple2<String, String>> wordPairs = lines.flatMap(new FlatMapFunction<String, Tuple2<String, String>>() {
+            @Override
+            public Iterable<Tuple2<String, String>> call(String line) {
+                line = line.toLowerCase().replaceAll("\\W", " ").replaceAll("_", " ");
+                String[] tokens = line.split("\\s+");
 
-        for (int i = 0; i < tokens.length; i += 1) {
-          String contextWord = tokens[i];
-          if (contextWord.length() == 0) continue;
-          if (seen.contains(contextWord)) continue;
-          seen.add(contextWord);
+                Set<String> seen = new HashSet<String>();
+                ArrayList<Tuple2<String, String>> ret = new ArrayList<Tuple2<String, String>>();
 
-          Map<String, Integer> m = new HashMap<String, Integer>();
-          for (int j = 0; j < tokens.length; j += 1) {
-            String otherWord = tokens[j];
-            if (i == j) continue;
-            if (otherWord.length() == 0) continue;
-            if (!m.containsKey(otherWord)) {
-              m.put(otherWord, 1);
-              continue;
+                for (int i = 0; i < tokens.length; i += 1) {
+                    String contextWord = tokens[i];
+                    if (contextWord.length() == 0) continue;
+                    if (seen.contains(contextWord)) continue;
+                    seen.add(contextWord);
+
+                    for (int j = 0; j < tokens.length; j += 1) {
+                        String otherWord = tokens[j];
+                        if (i == j) continue;
+                        if (otherWord.length() == 0) continue;
+                        ret.add(new Tuple2<String, String>(contextWord, otherWord));
+                    }
+                }
+
+                return ret;
             }
-            m.put(otherWord, m.get(otherWord)+1);
-          }
+        });
 
-          for (Map.Entry<String, Integer> entry : m.entrySet()) {
-            String k = entry.getKey();
-            Integer v = entry.getValue();
-            return new Tuple2<String, Tuple2<String, Integer>>(contextWord, new Tuple2<String, Integer>(k, v));
-          }
+        JavaPairRDD<String, Tuple2<String, Integer>> ones = wordPairs.mapToPair(new PairFunction<Tuple2<String, String>, String, Tuple2<String, Integer>>() {
+            @Override
+            public Tuple2<String, Tuple2<String, Integer>> call(Tuple2<String, String> tup) {
+                return new Tuple2<String, Tuple2<String, Integer>>(tup._1(), new Tuple2<String, Integer>(tup._2(), 1));
+            }
+        });
+
+        JavaPairRDD<String, ArrayList<Tuple2<String, Integer>>> list = ones.combineByKey(new Function<Tuple2<String, Integer>, ArrayList<Tuple2<String, Integer>>>() {
+            @Override
+            public ArrayList<Tuple2<String, Integer>> call(Tuple2<String, Integer> v) {
+                ArrayList<Tuple2<String, Integer>> l = new ArrayList<Tuple2<String, Integer>>();
+                l.add(v);
+                return l;
+            }
+        }, new Function2<ArrayList<Tuple2<String, Integer>>, Tuple2<String, Integer>, ArrayList<Tuple2<String, Integer>>>() {
+            @Override
+            public ArrayList<Tuple2<String, Integer>> call(ArrayList<Tuple2<String, Integer>> c, Tuple2<String, Integer> v) {
+                // TODO: optionally, look through the list here and sum at the right spot
+                c.add(v);
+                return c;
+            }
+        }, new Function2<ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>>() {
+            @Override
+            public ArrayList<Tuple2<String, Integer>> call(ArrayList<Tuple2<String, Integer>> c1, ArrayList<Tuple2<String, Integer>> c2) {
+                c1.addAll(c2);
+                return c1;
+            }
+        });
+
+        JavaPairRDD<String, ArrayList<Tuple2<String, Integer>>> counts = list.reduceByKey(new Function2<ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>>() {
+            @Override
+            public ArrayList<Tuple2<String, Integer>> call(ArrayList<Tuple2<String, Integer>> list1, ArrayList<Tuple2<String, Integer>> list2) {
+                Map<String, Integer> m = new HashMap<String, Integer>();
+                for (Tuple2<String, Integer> tup : list1) m.put(tup._1(), 0);
+                for (Tuple2<String, Integer> tup : list2) m.put(tup._1(), 0);
+                for (Tuple2<String, Integer> tup : list1) m.put(tup._1(), m.get(tup._1()) + tup._2());
+                for (Tuple2<String, Integer> tup : list2) m.put(tup._1(), m.get(tup._1()) + tup._2());
+                ArrayList<Tuple2<String, Integer>> ret = new ArrayList<Tuple2<String, Integer>>();
+                for (Map.Entry<String, Integer> entry : m.entrySet()) {
+                    ret.add(new Tuple2<String, Integer>(entry.getKey(), entry.getValue()));
+                }
+                return ret;
+            }
+        });
+
+        List<Tuple2<String, ArrayList<Tuple2<String, Integer>>>> output = counts.collect();
+        for (Tuple2<String, ArrayList<Tuple2<String, Integer>>> outerTuple : output) {
+            String contextWord = outerTuple._1();
+            ArrayList<Tuple2<String, Integer>> pairs = outerTuple._2();
+            System.out.println(contextWord);
+
+            for (Tuple2<String, Integer> tup : pairs) {
+                String otherWord = tup._1();
+                Integer num = tup._2();
+                System.out.println("<" + otherWord + ", " + Integer.toString(num) + ">");
+            }
         }
-      }
-    });
 
-    // public <C> JavaPairRDD<K,C> combineByKey(Function<V,C> createCombiner,
-    //                                 Function2<C,V,C> mergeValue,
-    //                                 Function2<C,C,C> mergeCombiners,
-    //                                 Partitioner partitioner)
-    // Generic function to combine the elements for each key using a custom set of aggregation functions. Turns a JavaPairRDD[(K, V)] into a result of type JavaPairRDD[(K, C)], for a "combined type" C * Note that V and C can be different -- for example, one might group an RDD of type (Int, Int) into an RDD of type (Int, List[Int]). Users provide three functions:
-    // - createCombiner, which turns a V into a C (e.g., creates a one-element list) - mergeValue, to merge a V into a C (e.g., adds it to the end of a list) - mergeCombiners, to combine two C's into a single one.
-
-    // In addition, users can control the partitioning of the output RDD, and whether to perform map-side aggregation (if a mapper can produce multiple items with the same key).
-
-    JavaPairRDD<String, List<Tuple2<String, Integer>>> listed = aggregated.combineByKey(new Function<Tuple2<String, Integer>, List<Tuple2<String, Integer>>>() {
-      @Override
-      public List<Tuple2<String, Integer>> call(Tuple2<String, Integer> tup) {
-        return Arrays.asList(tup);
-      }
-    }, new Function2<List<Tuple2<String, Integer>>, Tuple2<String, Integer>, List<Tuple2<String, Integer>>>() {
-      @Override
-      public List<Tuple2<String, Integer>> call(List<Tuple2<String, Integer>> c, Tuple2<String, Integer> v) {
-        c.add(v);
-        return c;
-      }
-    }, new Function2<List<Tuple2<String, Integer>>, List<Tuple2<String, Integer>>, List<Tuple2<String, Integer>>>() {
-      @Override
-      public List<Tuple2<String, Integer>> call(List<Tuple2<String, Integer>> c1, List<Tuple2<String, Integer>> c2) {
-        c1.addAll(c2);
-        return c1;
-      }
-    });
-
-    JavaPairRDD<String, List<Tuple2<String, Integer>>> counts = listed.reduceByKey(new Function2<List<Tuple2<String, Integer>>, List<Tuple2<String, Integer>>, List<Tuple2<String, Integer>>>() {
-      @Override
-      public List<Tuple2<String, Integer>> call(List<Tuple2<String, Integer>> list1, List<Tuple2<String, Integer>> list2) {
-        Map<String, Integer> m = new HashMap<String, Integer>();
-        for (Tuple2<String, Integer> tup : list1) m.put(tup._1(), 0);
-        for (Tuple2<String, Integer> tup : list2) m.put(tup._1(), 0);
-        for (Tuple2<String, Integer> tup : list1) m.put(tup._1(), m.get(tup._1()) + tup._2());
-        for (Tuple2<String, Integer> tup : list2) m.put(tup._1(), m.get(tup._1()) + tup._2());
-        List<Tuple2<String, Integer>> ret = new ArrayList<Tuple2<String, Integer>>();
-        for (Map.Entry<String, Integer> entry : m.entrySet()) {
-          ret.add(new Tuple2<String, Integer>(entry.getKey(), entry.getValue()));
-        }
-        return ret;
-      }
-    });
-
-    List<Tuple2<String, List<Tuple2<String, Integer>>>> output = counts.collect();
-    for (Tuple2<String, List<Tuple2<String, Integer>>> outerTuple : output) {
-      String contextWord = outerTuple._1();
-      List<Tuple2<String, Integer>> pairs = outerTuple._2();
-      System.out.println(contextWord);
-
-      for (Tuple2<String, Integer> tup : pairs) {
-        String otherWord = tup._1();
-        Integer num = tup._2();
-        System.out.println("<" + otherWord + ", " + Integer.toString(num) + ">");
-      }
+        ctx.stop();
     }
-
-    ctx.stop();
-  }
 }
