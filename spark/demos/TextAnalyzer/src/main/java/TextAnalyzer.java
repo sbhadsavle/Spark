@@ -91,7 +91,14 @@ public final class TextAnalyzer {
         }, new Function2<ArrayList<Tuple2<String, Integer>>, Tuple2<String, Integer>, ArrayList<Tuple2<String, Integer>>>() {
             @Override
             public ArrayList<Tuple2<String, Integer>> call(ArrayList<Tuple2<String, Integer>> c, Tuple2<String, Integer> v) {
-                // TODO: optionally, look through the list here and sum at the right spot
+                for (int i = 0; i < c.size(); i += 1) {
+                    Tuple2<String, Integer> tup = c.get(i);
+                    if (tup._1().equals(v._1())) {
+                        c.set(i, new Tuple2<String, Integer>(tup._1(), tup._2()+v._2()));
+                        return c;
+                    }
+                }
+
                 c.add(v);
                 return c;
             }
@@ -106,7 +113,10 @@ public final class TextAnalyzer {
         JavaPairRDD<String, ArrayList<Tuple2<String, Integer>>> counts = list.reduceByKey(new Function2<ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>>() {
             @Override
             public ArrayList<Tuple2<String, Integer>> call(ArrayList<Tuple2<String, Integer>> list1, ArrayList<Tuple2<String, Integer>> list2) {
-                Map<String, Integer> m = new HashMap<String, Integer>();
+                System.out.println("list1, list2");
+                System.out.println(list1.toString() + " / " + list2.toString());
+
+                Map<String, Integer> m = new TreeMap<String, Integer>();
                 for (Tuple2<String, Integer> tup : list1) m.put(tup._1(), 0);
                 for (Tuple2<String, Integer> tup : list2) m.put(tup._1(), 0);
                 for (Tuple2<String, Integer> tup : list1) m.put(tup._1(), m.get(tup._1()) + tup._2());
@@ -128,7 +138,7 @@ public final class TextAnalyzer {
             for (Tuple2<String, Integer> tup : pairs) {
                 String otherWord = tup._1();
                 Integer num = tup._2();
-                System.out.println("<" + otherWord + ", " + Integer.toString(num) + ">");
+                System.out.println("<" + otherWord + ", " + num.toString() + ">");
             }
         }
 
