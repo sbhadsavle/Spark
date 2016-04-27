@@ -35,9 +35,7 @@ import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.TreeMap;
-import java.util.regex.Pattern;
 
 public final class TextAnalyzer {
     private static class PrintableTuple implements Serializable {
@@ -54,13 +52,6 @@ public final class TextAnalyzer {
             StringBuilder sb = new StringBuilder();
             sb.append(this.queryWord + "\n");
 
-            Collections.sort(this.pairs, new Comparator<Tuple2<String, Integer>>() {
-                @Override
-                public int compare(Tuple2<String, Integer> t1, Tuple2<String, Integer> t2) {
-                    return t1._1().compareTo(t2._1());
-                }
-            });
-
             for (Tuple2<String, Integer> t : this.pairs) {
                 sb.append("<" + t._1() + ", " + t._2() + ">" + "\n");
             }
@@ -71,15 +62,15 @@ public final class TextAnalyzer {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 1) {
-            System.err.println("Usage: TextAnalyzer <file>");
+        if (args.length < 3) {
+            System.err.println("Usage: TextAnalyzer <input-file> <output-file> <num-partitions>");
             System.exit(1);
         }
 
         SparkConf sparkConf = new SparkConf().setAppName("TextAnalyzer").setJars(new String[] {"/root/TextAnalyzer.jar"});
         sparkConf.setMaster("spark://ec2-54-86-243-145.compute-1.amazonaws.com:7077");
         JavaSparkContext ctx = new JavaSparkContext(sparkConf);
-        JavaRDD<String> lines = ctx.textFile(args[0], 1);
+        JavaRDD<String> lines = ctx.textFile(args[0], Integer.parseInt(args[2]));
 
         JavaRDD<Tuple2<String, String>> wordPairs = lines.flatMap(new FlatMapFunction<String, Tuple2<String, String>>() {
             @Override
@@ -139,7 +130,7 @@ public final class TextAnalyzer {
         }, new Function2<ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>>() {
             @Override
             public ArrayList<Tuple2<String, Integer>> call(ArrayList<Tuple2<String, Integer>> c1, ArrayList<Tuple2<String, Integer>> c2) {
-                Map<String, Integer> m = new HashMap<String, Integer>();
+                Map<String, Integer> m = new TreeMap<String, Integer>();
                 for (Tuple2<String, Integer> tup : c1) m.put(tup._1(), 0);
                 for (Tuple2<String, Integer> tup : c2) m.put(tup._1(), 0);
                 for (Tuple2<String, Integer> tup : c1) m.put(tup._1(), m.get(tup._1()) + tup._2());
@@ -160,7 +151,7 @@ public final class TextAnalyzer {
                 return new PrintableTuple(t._1(), t._2());
             }
         })
-        .saveAsTextFile("/output");
+        .saveAsTextFile(args[1]);
 
         ctx.stop();
     }
