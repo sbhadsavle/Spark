@@ -45,6 +45,13 @@ public final class TextAnalyzer {
         PrintableTuple(String queryWord, List<Tuple2<String, Integer>> pairs) {
             this.queryWord = queryWord;
             this.pairs = pairs;
+
+            Collections.sort(this.pairs, new Comparator<Tuple2<String, Integer>>() {
+                @Override
+                public int compare(Tuple2<String, Integer> t1, Tuple2<String, Integer> t2) {
+                    return t1._1().compareTo(t2._1());
+                }
+            });
         }
 
         @Override
@@ -52,11 +59,13 @@ public final class TextAnalyzer {
             StringBuilder sb = new StringBuilder();
             sb.append(this.queryWord + "\n");
 
-            for (Tuple2<String, Integer> t : this.pairs) {
-                sb.append("<" + t._1() + ", " + t._2() + ">" + "\n");
+            for (int i = 0; i < this.pairs.size(); i += 1) {
+                Tuple2<String, Integer> t = this.pairs.get(i);
+                String s = String.format("<%s, %d>%s", t._1(), t._2(), i < this.pairs.size()-1 ? "\n" : "");
+                sb.append(s);
             }
 
-            sb.append("\n\n");
+            sb.append("\n");
             return sb.toString();
         }
     }
