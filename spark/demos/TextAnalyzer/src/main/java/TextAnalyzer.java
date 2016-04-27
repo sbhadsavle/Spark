@@ -129,7 +129,7 @@ public final class TextAnalyzer {
             }
         });
 
-        List<Tuple2<String, ArrayList<Tuple2<String, Integer>>>> output = counts.collect();
+        List<Tuple2<String, ArrayList<Tuple2<String, Integer>>>> output = counts.sortByKey().collect();
         for (Tuple2<String, ArrayList<Tuple2<String, Integer>>> outerTuple : output) {
             String contextWord = outerTuple._1();
             ArrayList<Tuple2<String, Integer>> pairs = outerTuple._2();
