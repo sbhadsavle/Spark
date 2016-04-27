@@ -24,7 +24,9 @@ import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
+import org.apache.spark.api.java.function.VoidFunction;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Arrays;
@@ -38,6 +40,36 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 
 public final class TextAnalyzer {
+    private static class PrintableTuple implements Serializable {
+        private String queryWord;
+        private List<Tuple2<String, Integer>> pairs;
+
+        PrintableTuple(String queryWord, List<Tuple2<String, Integer>> pairs) {
+            this.queryWord = queryWord;
+            this.pairs = pairs;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append(this.queryWord + "\n");
+
+            Collections.sort(this.pairs, new Comparator<Tuple2<String, Integer>>() {
+                @Override
+                public int compare(Tuple2<String, Integer> t1, Tuple2<String, Integer> t2) {
+                    return t1._1().compareTo(t2._1());
+                }
+            });
+
+            for (Tuple2<String, Integer> t : this.pairs) {
+                sb.append("<" + t._1() + ", " + t._2() + ">" + "\n");
+            }
+
+            sb.append("\n\n");
+            return sb.toString();
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
             System.err.println("Usage: TextAnalyzer <file>");
@@ -83,7 +115,7 @@ public final class TextAnalyzer {
             }
         });
 
-        JavaPairRDD<String, ArrayList<Tuple2<String, Integer>>> list = ones.combineByKey(new Function<Tuple2<String, Integer>, ArrayList<Tuple2<String, Integer>>>() {
+        JavaPairRDD<String, ArrayList<Tuple2<String, Integer>>> counts = ones.combineByKey(new Function<Tuple2<String, Integer>, ArrayList<Tuple2<String, Integer>>>() {
             @Override
             public ArrayList<Tuple2<String, Integer>> call(Tuple2<String, Integer> v) {
                 ArrayList<Tuple2<String, Integer>> l = new ArrayList<Tuple2<String, Integer>>();
@@ -107,22 +139,11 @@ public final class TextAnalyzer {
         }, new Function2<ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>>() {
             @Override
             public ArrayList<Tuple2<String, Integer>> call(ArrayList<Tuple2<String, Integer>> c1, ArrayList<Tuple2<String, Integer>> c2) {
-                c1.addAll(c2);
-                return c1;
-            }
-        });
-
-        JavaPairRDD<String, ArrayList<Tuple2<String, Integer>>> counts = list.reduceByKey(new Function2<ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>, ArrayList<Tuple2<String, Integer>>>() {
-            @Override
-            public ArrayList<Tuple2<String, Integer>> call(ArrayList<Tuple2<String, Integer>> list1, ArrayList<Tuple2<String, Integer>> list2) {
-                System.out.println("list1, list2");
-                System.out.println(list1.toString() + " / " + list2.toString());
-
-                Map<String, Integer> m = new TreeMap<String, Integer>();
-                for (Tuple2<String, Integer> tup : list1) m.put(tup._1(), 0);
-                for (Tuple2<String, Integer> tup : list2) m.put(tup._1(), 0);
-                for (Tuple2<String, Integer> tup : list1) m.put(tup._1(), m.get(tup._1()) + tup._2());
-                for (Tuple2<String, Integer> tup : list2) m.put(tup._1(), m.get(tup._1()) + tup._2());
+                Map<String, Integer> m = new HashMap<String, Integer>();
+                for (Tuple2<String, Integer> tup : c1) m.put(tup._1(), 0);
+                for (Tuple2<String, Integer> tup : c2) m.put(tup._1(), 0);
+                for (Tuple2<String, Integer> tup : c1) m.put(tup._1(), m.get(tup._1()) + tup._2());
+                for (Tuple2<String, Integer> tup : c2) m.put(tup._1(), m.get(tup._1()) + tup._2());
                 ArrayList<Tuple2<String, Integer>> ret = new ArrayList<Tuple2<String, Integer>>();
                 for (Map.Entry<String, Integer> entry : m.entrySet()) {
                     ret.add(new Tuple2<String, Integer>(entry.getKey(), entry.getValue()));
@@ -131,25 +152,15 @@ public final class TextAnalyzer {
             }
         });
 
-        List<Tuple2<String, ArrayList<Tuple2<String, Integer>>>> output = counts.sortByKey().collect();
-        for (Tuple2<String, ArrayList<Tuple2<String, Integer>>> outerTuple : output) {
-            String contextWord = outerTuple._1();
-            ArrayList<Tuple2<String, Integer>> pairs = outerTuple._2();
-            Collections.sort(pairs, new Comparator<Tuple2<String, Integer>>() {
-                @Override
-                public int compare(Tuple2<String, Integer> t1, Tuple2<String, Integer> t2) {
-                    return t1._1().compareTo(t2._1());
-                }
-            });
-
-            System.out.println(contextWord);
-
-            for (Tuple2<String, Integer> tup : pairs) {
-                String otherWord = tup._1();
-                Integer num = tup._2();
-                System.out.println("<" + otherWord + ", " + num.toString() + ">");
+        counts
+        .sortByKey()
+        .map(new Function<Tuple2<String, ArrayList<Tuple2<String, Integer>>>, PrintableTuple>() {
+            @Override
+            public PrintableTuple call(Tuple2<String, ArrayList<Tuple2<String, Integer>>> t) {
+                return new PrintableTuple(t._1(), t._2());
             }
-        }
+        })
+        .saveAsTextFile("/output");
 
         ctx.stop();
     }
