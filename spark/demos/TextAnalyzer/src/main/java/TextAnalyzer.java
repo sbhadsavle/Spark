@@ -20,7 +20,7 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.FlatMapFunction;
+import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFunction;
@@ -71,7 +71,7 @@ public final class TextAnalyzer {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length < 3) {
+        if (args.length != 3) {
             System.err.println("Usage: TextAnalyzer <input-file> <output-file> <num-partitions>");
             System.exit(1);
         }
@@ -81,14 +81,14 @@ public final class TextAnalyzer {
         JavaSparkContext ctx = new JavaSparkContext(sparkConf);
         JavaRDD<String> lines = ctx.textFile(args[0], Integer.parseInt(args[2]));
 
-        JavaRDD<Tuple2<String, String>> wordPairs = lines.flatMap(new FlatMapFunction<String, Tuple2<String, String>>() {
+        JavaPairRDD<String, Tuple2<String, Integer>> onesPairs = lines.flatMapToPair(new PairFlatMapFunction<String, String, Tuple2<String, Integer>>() {
             @Override
-            public Iterable<Tuple2<String, String>> call(String line) {
+            public Iterable<Tuple2<String, Tuple2<String, Integer>>> call(String line) {
                 line = line.toLowerCase().replaceAll("\\W", " ").replaceAll("_", " ");
                 String[] tokens = line.split("\\s+");
 
                 Set<String> seen = new HashSet<String>();
-                ArrayList<Tuple2<String, String>> ret = new ArrayList<Tuple2<String, String>>();
+                ArrayList<Tuple2<String, Tuple2<String, Integer>>> ret = new ArrayList<Tuple2<String, Tuple2<String, Integer>>>();
 
                 for (int i = 0; i < tokens.length; i += 1) {
                     String contextWord = tokens[i];
@@ -100,7 +100,7 @@ public final class TextAnalyzer {
                         String otherWord = tokens[j];
                         if (i == j) continue;
                         if (otherWord.length() == 0) continue;
-                        ret.add(new Tuple2<String, String>(contextWord, otherWord));
+                        ret.add(new Tuple2<String, Tuple2<String, Integer>>(contextWord, new Tuple2<String, Integer>(otherWord, 1)));
                     }
                 }
 
@@ -108,14 +108,7 @@ public final class TextAnalyzer {
             }
         });
 
-        JavaPairRDD<String, Tuple2<String, Integer>> ones = wordPairs.mapToPair(new PairFunction<Tuple2<String, String>, String, Tuple2<String, Integer>>() {
-            @Override
-            public Tuple2<String, Tuple2<String, Integer>> call(Tuple2<String, String> tup) {
-                return new Tuple2<String, Tuple2<String, Integer>>(tup._1(), new Tuple2<String, Integer>(tup._2(), 1));
-            }
-        });
-
-        JavaPairRDD<String, ArrayList<Tuple2<String, Integer>>> counts = ones.combineByKey(new Function<Tuple2<String, Integer>, ArrayList<Tuple2<String, Integer>>>() {
+        JavaPairRDD<String, ArrayList<Tuple2<String, Integer>>> counts = onesPairs.combineByKey(new Function<Tuple2<String, Integer>, ArrayList<Tuple2<String, Integer>>>() {
             @Override
             public ArrayList<Tuple2<String, Integer>> call(Tuple2<String, Integer> v) {
                 ArrayList<Tuple2<String, Integer>> l = new ArrayList<Tuple2<String, Integer>>();
